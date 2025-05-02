@@ -1,14 +1,21 @@
 package org.example.servletContainer;
 
+import org.example.servletContainer.Session.HttpSession;
+import org.example.servletContainer.Session.SessionManager;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.Map;
 
 public class HttpRequest {
     private String method;
     private String path;
     private String body;
+    private final Map<String, String> headers = new HashMap<>();
+    private HttpSession session;
 
     public HttpRequest(InputStream inputStream) throws IOException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
@@ -24,12 +31,19 @@ public class HttpRequest {
             }
         }
 
-        // 헤더 읽기
         int contentLength = 0;
+
+        // 헤더 읽기
         while ((line = reader.readLine()) != null && !line.isEmpty()) {
-            String[] headerParts = line.split(": ");
-            if (headerParts.length == 2 && headerParts[0].equalsIgnoreCase("Content-Length")) {
-                contentLength = Integer.parseInt(headerParts[1]);
+            int colonIndex = line.indexOf(":");
+            if (colonIndex != -1) {
+                String name = line.substring(0, colonIndex).trim();
+                String value = line.substring(colonIndex + 1).trim();
+                headers.put(name, value);
+
+                if (name.equalsIgnoreCase("Content-Length")) {
+                    contentLength = Integer.parseInt(value);
+                }
             }
         }
 
@@ -53,5 +67,30 @@ public class HttpRequest {
 
     public String getBody() {
         return body;
+    }
+
+    public String getHeader(String name) {
+        return headers.get(name);
+    }
+
+    public HttpSession getSession(SessionManager sessionManager) {
+        if (session == null) {
+            String cookieHeader = getHeader("Cookie");
+            String sessionId = null;
+
+            if (cookieHeader != null) {
+                for (String cookie : cookieHeader.split(";")) {
+                    String[] parts = cookie.trim().split("=");
+                    if (parts.length == 2 && parts[0].equals("JSESSIONID")) {
+                        sessionId = parts[1];
+                        break;
+                    }
+                }
+            }
+
+            session = sessionManager.getSession(sessionId);
+        }
+
+        return session;
     }
 }
